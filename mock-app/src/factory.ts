@@ -34,22 +34,22 @@ export function factory() {
   app.get('/1', (_req, res) => res.json({ ts, path: 1 }));
   app.post('/2', (req, res) => res.json({ ts, path: 2, input: req.body }));
 
-
   app.get('/', (_req: Request, res: Response) => {
     res.json({ data: appInfo, ts: new Date() });
   });
 
   app.post('/', async (req: IRequest, res: IResponse) => {
-    const { ctx, log } = res.locals;
+    const { id, log } = res.locals;
     const { lat = randomInt(100), lon = randomInt(100) } = req.body;
     log.info('Handling request for root path');
 
-    const api = serviceA.apiPerRequest(ctx, log);
+    const api = serviceA.apiPerRequest(id, log);
     const result = await api.homePage(lat, lon);
 
     res.send(result);
   });
 
+  mw.useAtFinish(app);
 
   return {
     app,
