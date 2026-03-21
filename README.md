@@ -31,7 +31,7 @@ npm publish --access=public
 ## usage
 
 ```sh
-npm i @rataqa/amil
+npm i @rataqa/wasit
 ```
 
 Example: see [mock-app/](mock-app)

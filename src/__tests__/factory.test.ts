@@ -7,11 +7,12 @@ import { CONTENT_TYPES, HEADERS } from '../constants';
 import { delay, uuid } from '../utils';
 import { strictEqual } from 'node:assert';
 
-describe('mw facory', async () => {
+describe('mw factory', async () => {
 
-  const apiKey = uuid.v4.generate();
   const app = express();
   const logger = makeLogger('pino', { appName: 'test', appVersion: '1.0.0'});
+  
+  const apiKey = uuid.v4.generate();
 
   const mw = mwFactory(logger);
 
@@ -20,6 +21,7 @@ describe('mw facory', async () => {
   const ts = new Date().getTime();
   app.get('/1', (_req, res) => res.json({ ts, path: 1 }));
   app.post('/2', (req, res) => res.json({ ts, path: 2, input: req.body }));
+  app.get('/err', (_req, _res) => { throw new Error('catch this') });
 
   mw.useAtFinish(app);
 

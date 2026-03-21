@@ -11,8 +11,8 @@ import responseTime from 'response-time';
 
 import { uuid } from './utils';
 import { HttpError, HttpServerIssue, HttpUserIssue } from './errors';
-import { EXT_REQUIRED_HEADERS, HEADERS } from './constants';
-import { IResponse } from './types';
+import { HEADERS } from './constants';
+import { IOptionsForMwAtStart, IResponse } from './types';
 
 export function mwFactory(logger: ILogger) {
 
@@ -33,7 +33,8 @@ export function mwFactory(logger: ILogger) {
 
     const originalSend = res.send; // backup
 
-    res.send = function newSend(body: any) { // override send() method
+    // override send() method
+    res.send = function newSend(body: any) {
       const t1 = new Date();
       const { id = '' } = res.locals;
       res.set(HEADERS.CORRELATION_ID, id);
@@ -83,15 +84,13 @@ export function mwFactory(logger: ILogger) {
     function mw(req: Request, res: Response, next: NextFunction) {
       let id = (req.get(HEADERS.CORRELATION_ID) || '').trim();
 
-      if (id === '') {
-        if (isRequired) {
+      if (isRequired) {
+        if (id === '' || !uuid.v4.test(id)) {
           throw new HttpUserIssue()
-            .setDetails({ description: 'Missing header', key: HEADERS.CORRELATION_ID });
+            .setDetails({ description: 'Missing/invalid header', key: HEADERS.CORRELATION_ID });
         }
+      } else if (id === '') {
         id = uuid.v4.generate();
-      } else if (!uuid.v4.test(id)) {
-        throw new HttpUserIssue()
-          .setDetails({ description: 'Invalid header', key: HEADERS.CORRELATION_ID });
       }
 
       res.locals['id'] = id;
@@ -104,14 +103,23 @@ export function mwFactory(logger: ILogger) {
   function makeAccessLogMw() {
 
     function mw(req: Request, res: IResponse, next: NextFunction) {
-      const { id = uuid.v4.generate(), t0, ip, ua } = res.locals;
-      if (res.locals.id !== id) res.locals.id = id; // just in case
+      const { id, t0, ip, ua } = res.locals;
 
       const log = logger.makeLoggerPerRequest({ correlation_id: id });
       res.locals['log'] = log;
 
       const { method, url, query } = req;
       log.info('REQUEST', { method, url, query, t0, ip, ua });
+      next();
+    }
+
+    return mw;
+  }
+
+  function makeLocaleMw(validLocales: string[], defaultLocale = validLocales[0]) {
+
+    function mw(req: Request, res: IResponse, next: NextFunction) {
+      res.locals['locale'] = req.acceptsLanguages(validLocales) || defaultLocale || 'en';
       next();
     }
 
@@ -128,13 +136,13 @@ export function mwFactory(logger: ILogger) {
 
   const storage = multer.memoryStorage();
   
-  function makeSingleFileUploadMw(fieldName = 'file', fileSizeInMb = 50) {
-    const uploadOne = multer({ storage, limits: { files: 1, fileSize: fileSizeInMb * 1024 - 1024 }});
+  function makeSingleFileUploadMw(fileSizeInMb = 10, fieldName = 'file') {
+    const uploadOne = multer({ storage, limits: { files: 1, fileSize: fileSizeInMb * 1024 * 1024 }});
     return uploadOne.single(fieldName);
   }
   
-  function makeMultiFileUploadMw(fieldName = 'files', max = 10, fileSizeInMb = 10) {
-    const uploadMulti = multer({ storage, limits: { files: max, fileSize: fileSizeInMb * 1024 - 1024 }});
+  function makeMultiFileUploadMw(fileSizeInMb = 10, fieldName = 'files', max = 10) {
+    const uploadMulti = multer({ storage, limits: { files: max, fileSize: fileSizeInMb * 1024 * 1024 }});
     return uploadMulti.array(fieldName, max);
   }
 
@@ -147,7 +155,7 @@ export function mwFactory(logger: ILogger) {
 
     const error = err instanceof HttpError ? err : new HttpServerIssue().setDetails(err);
     if (error.status >= 500) {
-      l.error('ERROR', { error: err });
+      l.error('ERROR', { error: err.message });
     } else {
       l.warn('WARN', { warning: err });
     }
@@ -167,8 +175,9 @@ export function mwFactory(logger: ILogger) {
     makeTimeoutMw,
     corsMw,
     securityMw,
-    makeHeaderEnforcerMw,
     makeAccessLogMw,
+    makeHeaderEnforcerMw,
+    makeLocaleMw,
     makeCorrelationIdMw,
     makeCookieParserMw,
     makeCompressionMw,
@@ -178,18 +187,34 @@ export function mwFactory(logger: ILogger) {
     makeMultiFileUploadMw,
 
     // step 1 - inject starter middleware
-    useAtStart: (app: Application, requiredCommonHeaders = EXT_REQUIRED_HEADERS) => {
+    useAtStart: (app: Application, options: IOptionsForMwAtStart = {}) => {
+      const {
+        acceptJson           = true,
+        acceptForms          = false,
+        reqBodyLimitInMb     = 10,
+        enableFileUploads    = false,
+        fileSizeInMb         = 10,
+        requireCorrelationId = false,
+        requireCommonHeaders = [],
+      } = options;
+
       app.use(responseTime());
       app.use(bootMw);
-      app.use(cors());
-      app.use(helmet());
-      app.use(makeCorrelationIdMw());
+      app.use(corsMw);
+      app.use(securityMw);
+      app.use(makeCorrelationIdMw(requireCorrelationId));
       app.use(makeAccessLogMw());
-      app.use(makeHeaderEnforcerMw(requiredCommonHeaders));
-      app.use(makeJsonMw());
-      app.use(makeFormMw());
-      app.use(makeSingleFileUploadMw());
-      app.use(makeMultiFileUploadMw());
+
+      if (requireCommonHeaders.length) app.use(makeHeaderEnforcerMw(requireCommonHeaders));
+
+      if (acceptJson) app.use(makeJsonMw(reqBodyLimitInMb));
+
+      if (acceptForms) app.use(makeFormMw(reqBodyLimitInMb));
+
+      if (enableFileUploads) {
+        app.use(makeSingleFileUploadMw(fileSizeInMb));
+        app.use(makeMultiFileUploadMw(fileSizeInMb));
+      }
     },
 
     // step 2: define your routes

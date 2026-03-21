@@ -1,6 +1,6 @@
 {
   "name": "@rataqa/wasit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Common Express.js middleware",
   "type": "commonjs",
   "main": "dist/index.js",
@@ -11,7 +11,9 @@
   "scripts": {
     "clean": "rimraf ./dist",
     "build:ts": "tsc --project tsconfig.build.json",
+    "build:ts:test": "tsc --project tsconfig.json",
     "build": "npm-run-all clean build:ts",
+    "build:test": "npm-run-all clean build:ts:test",
     "test": "node -r ts-node/register --test src/__tests__/*.test.ts",
     "test:coverage": "node -r ts-node/register --experimental-test-coverage --test src/__tests__/*.test.ts"
   },
