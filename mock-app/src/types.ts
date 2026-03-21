@@ -12,13 +12,9 @@ export type IRequest = Request<any, any, IInputToGet>;
 export type IResponse<TBody = any> = Response<TBody, IResLocals>;
 
 export interface IResLocals {
-  ctx: IAppCtx;
   log: IBasicLogger;
-}
-
-export interface IAppCtx {
   t0: Date;
-  correlation_id: string;
+  id: string;
 }
 
 export interface IEnvSettings extends IProcessEnv {
