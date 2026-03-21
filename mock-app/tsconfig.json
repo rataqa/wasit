@@ -8,16 +8,16 @@
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "nodenext",
-    "target": "es2024",
-
+    "target": "esnext",
     // "types": [],
     // For nodejs:
     // "lib": ["esnext"],
-    "types": ["node"], // and npm install -D @types/node
+    "types": ["node"],
+    // and npm install -D @types/node
 
     // Other Outputs
     "sourceMap": false,
-    "declaration": true,
+    "declaration": false,
     "declarationMap": false,
 
     // Stricter Typechecking Options
@@ -25,28 +25,20 @@
     "exactOptionalPropertyTypes": true,
 
     // Style Options
-    "noImplicitReturns": true,
-    "noImplicitOverride": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    // "noImplicitReturns": true,
+    // "noImplicitOverride": true,
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
     // "noFallthroughCasesInSwitch": true,
     // "noPropertyAccessFromIndexSignature": true,
 
-    "skipLibCheck": true,
-    "removeComments": true,                   /* Do not emit comments to output. */
-
+    // Recommended Options
     "strict": true,
-
+    //"jsx": "react-jsx",
     "verbatimModuleSyntax": false,
-    "esModuleInterop": true,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-  },
-  "include": [
-    "src"
-  ],
-  "exclude": [
-    "node_modules",
-  ]
+    "skipLibCheck": true,
+  }
 }
