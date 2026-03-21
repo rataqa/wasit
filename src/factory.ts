@@ -36,18 +36,22 @@ export function mwFactory(logger: ILogger) {
     // override send() method
     res.send = function newSend(body: any) {
       const t1 = new Date();
+
       const { id = '' } = res.locals;
-      res.set(HEADERS.CORRELATION_ID, id);
-      log(res).info('RESPONSE', { method, url, id, t0, t1 });
-      
-      res.send = originalSend; // Restore original send and execute
+      res.setHeader(HEADERS.CORRELATION_ID, id);
+
+      const deltaMs = t1.getTime() - t0.getTime();
+      log(res).info('RESPONSE', { method, url, id, t0, t1, deltaMs });
+
+      // Restore original send and execute
+      res.send = originalSend;
       return res.send(body);
     };
 
     next();
   }
 
-  const corsMw = cors({ origin: '*', allowedHeaders: [HEADERS.CORRELATION_ID] });
+  const makeCorsMw = (origin = '*') => cors({ origin, allowedHeaders: [HEADERS.CORRELATION_ID] });
 
   const securityMw = helmet();
 
@@ -150,30 +154,30 @@ export function mwFactory(logger: ILogger) {
     next(new HttpUserIssue('Not found.').setStatus(404).setStatusCode('E404'));
   }
 
-  function finalErrorHandler(err: any, _req: Request, res: IResponse, next: NextFunction) {
+  function finalErrorHandler(err: any, _req: Request, res: IResponse, _next: NextFunction) {
     const l = log(res);
 
     const error = err instanceof HttpError ? err : new HttpServerIssue().setDetails(err);
     if (error.status >= 500) {
       l.error('ERROR', { error: err.message });
+      l.debug('ERROR', { error: err });
     } else {
-      l.warn('WARN', { warning: err });
+      l.warn('WARN', { warning: err.message });
     }
 
     res.status(error.status)
-      .header(HEADERS.ERROR_CODE, error.statusCode)
+      .setHeader(HEADERS.ERROR_CODE, error.statusCode)
       .json({
-        statusCode: err.statusCode,
-        message: err.message,
+        statusCode: error.statusCode,
+        message: error.message,
       });
-    next();
   }
 
   return {
     responseTimeMw: responseTime(),
     bootMw,
     makeTimeoutMw,
-    corsMw,
+    makeCorsMw,
     securityMw,
     makeAccessLogMw,
     makeHeaderEnforcerMw,
@@ -200,7 +204,7 @@ export function mwFactory(logger: ILogger) {
 
       app.use(responseTime());
       app.use(bootMw);
-      app.use(corsMw);
+      app.use(makeCorsMw());
       app.use(securityMw);
       app.use(makeCorrelationIdMw(requireCorrelationId));
       app.use(makeAccessLogMw());
