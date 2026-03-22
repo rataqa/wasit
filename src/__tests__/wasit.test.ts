@@ -2,9 +2,9 @@ import { makeLogger } from '@rataqa/sijil';
 import express from 'express';
 import { describe, it, after, afterEach } from 'node:test';
 
-import { mwFactory } from '../factory';
+import { mwFactory } from '../wasit';
 import { CONTENT_TYPES, EXT_REQUIRED_HEADERS, HEADERS } from '../constants';
-import { delay, uuid } from '../utils';
+import { waitForMs, uuid } from '../utils';
 import { strictEqual } from 'node:assert';
 import { HttpUserIssue } from '../errors';
 
@@ -35,10 +35,10 @@ describe('mw factory', async () => {
   mw.useAtFinish(app);
 
   const server = await app.listen(8080);
-  await delay(1000);
+  await waitForMs(1000);
 
   afterEach(async () => {
-    await delay(1000);
+    await waitForMs(1000);
   });
 
   it('should handle GET /1', async() => {

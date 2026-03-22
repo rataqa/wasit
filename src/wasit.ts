@@ -9,10 +9,10 @@ import multer from 'multer';
 import requestIp from 'request-ip';
 import responseTime from 'response-time';
 
-import { uuid } from './utils';
 import { HttpError, HttpServerIssue, HttpUserIssue } from './errors';
 import { HEADERS } from './constants';
-import { IOptionsForMwAtStart, IResponse } from './types';
+import { IOptionsForMwAtStart, IRequestHeadersMasker, IRequestQueryMasker, IResponse } from './types';
+import { ignoreErrorOnFunc, uuid } from './utils';
 
 export function mwFactory(logger: ILogger) {
 
@@ -38,10 +38,12 @@ export function mwFactory(logger: ILogger) {
       const t1 = new Date();
 
       const { id = '' } = res.locals;
-      res.setHeader(HEADERS.CORRELATION_ID, id);
+      if (!res.headersSent) {
+        res.setHeader(HEADERS.CORRELATION_ID, id);
+      }
 
       const deltaMs = t1.getTime() - t0.getTime();
-      log(res).info('RESPONSE', { method, url, id, t0, t1, deltaMs });
+      ignoreErrorOnFunc(() => log(res).info('RESPONSE', { method, url, id, t0, t1, deltaMs }));
 
       // Restore original send and execute
       res.send = originalSend;
@@ -55,8 +57,8 @@ export function mwFactory(logger: ILogger) {
 
   const securityMw = helmet();
 
-  function makeCompressionMw(thresholdInKb = 10) {
-    return compression({ threshold: `${thresholdInKb}kb` });
+  function makeCompressionMw(thresholdInKb = 50) {
+    return compression({ threshold: `${thresholdInKb}KB` });
   }
 
   const makeTimeoutMw = (seconds = 30) => timeout(`${seconds}s`);
@@ -89,7 +91,7 @@ export function mwFactory(logger: ILogger) {
       let id = (req.get(HEADERS.CORRELATION_ID) || '').trim();
 
       if (isRequired) {
-        if (id === '' || !uuid.v4.test(id)) {
+        if (id === '' || !uuid.v4.isValid(id)) {
           throw new HttpUserIssue()
             .setDetails({ description: 'Missing/invalid header', key: HEADERS.CORRELATION_ID });
         }
@@ -104,7 +106,10 @@ export function mwFactory(logger: ILogger) {
     return mw;
   }  
 
-  function makeAccessLogMw() {
+  function makeAccessLogMw(
+    maskQuery: IRequestQueryMasker = (input: Request['query']) => input,
+    maskHeaders: IRequestHeadersMasker = (input: Request['headers']) => input,
+  ) {
 
     function mw(req: Request, res: IResponse, next: NextFunction) {
       const { id, t0, ip, ua } = res.locals;
@@ -112,8 +117,17 @@ export function mwFactory(logger: ILogger) {
       const log = logger.makeLoggerPerRequest({ correlation_id: id });
       res.locals['log'] = log;
 
-      const { method, url, query } = req;
-      log.info('REQUEST', { method, url, query, t0, ip, ua });
+      const { method, url, query, headers } = req;
+
+      const queryMasked = ignoreErrorOnFunc<Request['query']>(() => maskQuery(query));
+
+      const headersMasked = ignoreErrorOnFunc<Request['headers']>(() => maskHeaders(headers));
+
+      const objToLog: any = { method, url, t0, ip, ua };
+      if (queryMasked) objToLog['query'] = queryMasked;
+      if (headersMasked) objToLog['headers'] = headersMasked;
+
+      ignoreErrorOnFunc(() => log.info('REQUEST', objToLog));
       next();
     }
 
@@ -158,12 +172,15 @@ export function mwFactory(logger: ILogger) {
     const l = log(res);
 
     const error = err instanceof HttpError ? err : new HttpServerIssue().setDetails(err);
-    if (error.status >= 500) {
-      l.error('ERROR', { error: err.message });
-      l.debug('ERROR', { error: err });
-    } else {
-      l.warn('WARN', { warning: err.message });
-    }
+
+    ignoreErrorOnFunc(() => {
+      if (error.status >= 500) {
+        l.error('ERROR', { error: err.message });
+        l.debug('ERROR', { error: err });
+      } else {
+        l.warn('WARN', { warning: err.message });
+      }
+    });
 
     res.status(error.status)
       .setHeader(HEADERS.ERROR_CODE, error.statusCode)
@@ -200,6 +217,8 @@ export function mwFactory(logger: ILogger) {
         fileSizeInMb         = 10,
         requireCorrelationId = false,
         requireCommonHeaders = [],
+        maskQuery,
+        maskHeaders,
       } = options;
 
       app.use(responseTime());
@@ -207,7 +226,7 @@ export function mwFactory(logger: ILogger) {
       app.use(makeCorsMw());
       app.use(securityMw);
       app.use(makeCorrelationIdMw(requireCorrelationId));
-      app.use(makeAccessLogMw());
+      app.use(makeAccessLogMw(maskQuery, maskHeaders));
 
       if (requireCommonHeaders.length) app.use(makeHeaderEnforcerMw(requireCommonHeaders));
 
