@@ -2,6 +2,7 @@ export const HEADERS = {
   CORRELATION_ID: 'x-correlation-id',
 
   API_KEY: 'x-api-key',
+  API_SECRET: 'x-api-secret',
 
   AZURE_API_KEY: 'ocp-apim-subscription-key',
 
@@ -40,7 +41,10 @@ export const INT_REQUIRED_HEADERS = [
 
 export const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export const LOCALE_REGEX = [
+export const LOCALE_CONVERTER = [
   { pattern: /ar/i, code: 'ar' },
+  { pattern: /de/i, code: 'de' },
   { pattern: /en/i, code: 'en' },
+  { pattern: /es/i, code: 'es' },
+  { pattern: /fr/i, code: 'fr' },
 ];

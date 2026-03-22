@@ -1,3 +1,3 @@
 # tests
 
-See [factory.test.ts](factory.test.ts)
+See [wasit.test.ts](wasit.test.ts)

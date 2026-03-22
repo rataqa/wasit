@@ -1,5 +1,5 @@
 import { IBasicLogger } from '@rataqa/sijil';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 
 export interface IResponseLocals {
   id : string;
@@ -52,4 +52,22 @@ export interface IOptionsForMwAtStart {
    * List of valid locale codes. The first one is default, if not detected.
    */
   validLocales?: string[];
+
+  /**
+   * Mask query values before logging. Return null to exclude from logs.
+   */
+  maskQuery?: IRequestQueryMasker;
+
+  /**
+   * Mask header values before logging. Return null to exclude from logs.
+   */
+  maskHeaders?: IRequestHeadersMasker;
+}
+
+export interface IRequestQueryMasker {
+  (query: Request['query']): Request['query'] | null;
+}
+
+export interface IRequestHeadersMasker {
+  (query: Request['headers']): Request['headers'] | null;
 }

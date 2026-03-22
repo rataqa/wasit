@@ -1,6 +1,6 @@
 {
   "name": "@rataqa/wasit",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Common Express.js middleware",
   "type": "commonjs",
   "main": "dist/index.js",
