@@ -176,7 +176,7 @@ export function mwFactory(logger: ILogger) {
     ignoreErrorOnFunc(() => {
       if (error.status >= 500) {
         l.error('ERROR', { error: err.message });
-        l.debug('ERROR', { error: err });
+        l.debug('ERROR', { error: err.stack });
       } else {
         l.warn('WARN', { warning: err.message });
       }
